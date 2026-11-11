@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{ --bg:#0a0e1a; --card:rgba(30,41,59,.85); --card-solid:#1e293b; --border:rgba(148,163,184,.12);
+    --text:#f1f5f9; --text-dim:#94a3b8; --primary:#6366f1; --primary-2:#8b5cf6;
+    --success:#10b981; --danger:#ef4444; --warning:#f59e0b; }
+  body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:1.5rem 1rem 3rem;
+    background-image:linear-gradient(rgba(10,14,26,.88),rgba(10,14,26,.92)), url('https://i.hizliresim.com/loreuqk4.jpg');
+    background-size:cover; background-position:center; background-attachment:fixed; }
+  .container{ max-width:1300px; margin:0 auto; }
+  .hidden{ display:none !important; }
+  .header{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:2rem; padding:1.25rem 1.5rem; background:var(--card); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:1.25rem; }
+  .logo{ display:flex; align-items:center; gap:.85rem; }
+  .logo-icon{ width:44px; height:44px; border-radius:12px; object-fit:cover; border:2px solid #ef4444; }
+  .logo-text h1{ font-size:1.2rem; font-weight:800; }
+  .logo-text p{ font-size:.72rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+  .btn{ background:var(--card-solid); border:1px solid var(--border); border-radius:.65rem; padding:.55rem 1rem; cursor:pointer; font-weight:600; font-size:.82rem; color:var(--text); font-family:inherit; }
+  .btn.danger{ color:#fca5a5; border-color:rgba(239,68,68,.35); }
+  .btn.primary{ background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; border:none; }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.85rem; margin-bottom:1.5rem; }
+  .stat{ background:var(--card); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:1rem; padding:1rem 1.1rem; }
+  .stat .label{ font-size:.68rem; color:var(--text-dim); font-weight:600; text-transform:uppercase; margin-bottom:.4rem; }
+  .stat .value{ font-size:1.6rem; font-weight:800; font-family:'JetBrains Mono',monospace; }
+  .stat .value.purple{ background:linear-gradient(135deg,#6366f1,#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .stat .value.green{ color:#86efac; } .stat .value.red{ color:#fca5a5; } .stat .value.yellow{ color:#fcd34d; } .stat .value.vip{ color:#f59e0b; }
+  .panel{ background:var(--card); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:1.25rem; padding:1.5rem; margin-bottom:1.5rem; }
+  .panel-title{ font-size:1.05rem; font-weight:700; margin-bottom:1rem; display:flex; align-items:center; gap:.5rem; }
+  .panel-title::before{ content:""; width:4px; height:18px; background:linear-gradient(180deg,#ef4444,#f97316); border-radius:4px; }
+  .tabs{ display:flex; gap:.4rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+  .tab-btn{ padding:.5rem 1rem; border-radius:.6rem; border:1px solid var(--border); background:var(--card-solid); color:var(--text-dim); cursor:pointer; font-family:inherit; font-size:.8rem; font-weight:600; }
+  .tab-btn.active{ background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; border-color:transparent; }
+  .toolbar{ display:flex; gap:.5rem; margin-bottom:1rem; flex-wrap:wrap; align-items:center; }
+  .toolbar input{ flex:1; min-width:180px; padding:.6rem .9rem; border-radius:.6rem; background:var(--card-solid); border:1px solid var(--border); color:var(--text); font-family:inherit; font-size:.82rem; outline:none; }
+  .user-row{ display:flex; align-items:center; gap:1rem; padding:.85rem 1rem; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .user-row:last-child{ border-bottom:none; }
+  .user-avatar{ width:44px; height:44px; border-radius:50%; flex-shrink:0; object-fit:cover; border:2px solid var(--border); cursor:pointer; }
+  .user-info{ flex:1; min-width:180px; }
+  .user-name{ font-weight:700; font-size:.92rem; display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+  .tick{ color:#60a5fa; font-size:.85rem; }
+  .rank-badge{ font-size:.65rem; font-weight:700; padding:.18rem .5rem; border-radius:999px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; text-transform:uppercase; }
+  .rank-badge.admin{ background:linear-gradient(135deg,#ef4444,#f97316); }
+  .rank-badge.vip{ background:linear-gradient(135deg,#f59e0b,#ef4444); }
+  .user-meta{ font-size:.72rem; color:var(--text-dim); margin-top:.15rem; }
+  .status{ font-size:.72rem; font-weight:700; display:inline-flex; align-items:center; gap:.35rem; }
+  .status .dot{ width:7px; height:7px; border-radius:50%; }
+  .status.online{ color:#86efac; } .status.online .dot{ background:#10b981; box-shadow:0 0 8px #10b981; }
+  .status.offline{ color:#64748b; } .status.offline .dot{ background:#64748b; }
+  .status.banned{ color:#fca5a5; } .status.banned .dot{ background:#ef4444; }
+  .user-actions{ display:flex; gap:.4rem; flex-wrap:wrap; }
+  .btn-sm{ padding:.4rem .7rem; border-radius:.5rem; font-size:.72rem; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--card-solid); color:var(--text); font-family:inherit; }
+  .btn-sm.danger{ color:#fca5a5; border-color:rgba(239,68,68,.3); }
+  .btn-sm.success{ color:#86efac; border-color:rgba(16,185,129,.3); }
+  .btn-sm.warn{ color:#fcd34d; border-color:rgba(245,158,11,.3); }
+  .btn-sm.vip{ color:#f59e0b; border-color:rgba(245,158,11,.5); }
+  .modal{ position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(6px); z-index:500; display:none; align-items:center; justify-content:center; padding:1rem; }
+  .modal.open{ display:flex; }
+  .modal-box{ background:var(--card-solid); border:1px solid var(--border); border-radius:1.25rem; padding:1.75rem; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; }
+  .modal-title{ font-size:1.1rem; font-weight:700; margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center; }
+  .modal-close{ background:transparent; border:none; color:var(--text-dim); font-size:1.4rem; cursor:pointer; }
+  .form-row{ margin-bottom:.85rem; }
+  .form-row label{ display:block; font-size:.75rem; font-weight:600; color:var(--text-dim); margin-bottom:.3rem; }
+  .form-row input, .form-row textarea, .form-row select{ width:100%; padding:.6rem .8rem; border-radius:.5rem; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:inherit; font-size:.85rem; outline:none; }
+  .form-row textarea{ min-height:70px; resize:vertical; font-family:'JetBrains Mono',monospace; font-size:.8rem; }
+  .log-row{ padding:.65rem .85rem; border-bottom:1px solid var(--border); font-size:.78rem; display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; }
+  .log-row:last-child{ border-bottom:none; }
+  .log-action{ font-family:'JetBrains Mono',monospace; font-weight:700; color:#a5b4fc; min-width:120px; word-break:break-all; }
+  .log-detail{ flex:1; color:var(--text-dim); word-break:break-all; min-width:200px; }
+  .log-ts{ font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--text-dim); }
+  .toast{ position:fixed; bottom:24px; right:24px; padding:.85rem 1.2rem; background:var(--card-solid); border:1px solid var(--primary); border-radius:.75rem; color:var(--text); font-size:.85rem; font-weight:600; opacity:0; transform:translateY(12px); transition:all .3s; pointer-events:none; z-index:999; }
+  .toast.show{ opacity:1; transform:translateY(0); }
+  .toast.error{ border-color:var(--danger); } .toast.success{ border-color:var(--success); }
+  .kv{ display:grid; grid-template-columns:140px 1fr; gap:.4rem .8rem; font-size:.82rem; }
+  .kv b{ color:var(--text-dim); font-weight:600; }
+  .wl-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem; }
+  @media(max-width:700px){ .wl-grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<div id="unauthView" class="container hidden">
+  <div class="panel" style="text-align:center;padding:3rem 2rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">🛡️</div>
+    <h2 style="margin-bottom:.5rem;">Yetkisiz Erişim</h2>
+    <a href="adminlogin.html" class="btn danger" style="display:inline-block;text-decoration:none;padding:.7rem 1.5rem;">🛡️ Admin Girişi</a>
+  </div>
+</div>
+
+<div id="adminView" class="container hidden">
+  <div class="header">
+    <div class="logo">
+      <img class="logo-icon" src="https://i.hizliresim.com/midnihxu.jpg" alt="">
+      <div class="logo-text"><h1>Admin Panel</h1><p>Forex Sorgulama</p></div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+      <button class="btn" onclick="loadAll()">🔄 Yenile</button>
+      <button class="btn" onclick="location.href='index.html'">🏠 Ana Sayfa</button>
+      <button class="btn" onclick="location.href='canliyayin.php'">📺 Canlı Yayınlar</button>
+      <button class="btn" onclick="exportUsers()">⬇️ Export</button>
+      <button class="btn danger" onclick="logout()">🚪 Çıkış</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="users" onclick="switchTab('users')">👥 Kullanıcılar</button>
+    <button class="tab-btn" data-tab="wordlists" onclick="switchTab('wordlists')">📚 Wordlist'ler</button>
+    <button class="tab-btn" data-tab="brutelog" onclick="switchTab('brutelog')">🔐 Brute Log</button>
+    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">⚙️ Ayarlar</button>
+    <button class="tab-btn" data-tab="broadcast" onclick="switchTab('broadcast')">📢 Duyuru</button>
+    <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">📜 Loglar</button>
+    <button class="tab-btn" onclick="location.href='canlizle.html'">📺 Canlı Yayınlar</button>
+  </div>
+
+  <div id="tab-users" class="panel">
+    <div class="panel-title">👥 Kullanıcılar</div>
+    <div class="toolbar">
+      <input type="text" id="searchUser" placeholder="🔍 Kullanıcı ara..." oninput="renderUsers()">
+      <select id="filterUser" onchange="renderUsers()" style="padding:.6rem .9rem;border-radius:.6rem;background:var(--card-solid);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.82rem;">
+        <option value="all">Tümü</option>
+        <option value="online">Çevrimiçi</option>
+        <option value="vip">VIP</option>
+        <option value="verified">Doğrulanmış</option>
+        <option value="banned">Banlı</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div id="userList"></div>
+  </div>
+
+  <div id="tab-wordlists" class="panel hidden">
+    <div class="panel-title">📚 Wordlist Yönetimi</div>
+    <div class="wl-grid">
+      <div>
+        <div class="form-row"><label>📤 Dosya Yükle (.txt/.lst/.wordlist)</label><input type="file" id="wlFile" accept=".txt,.lst,.wordlist"></div>
+        <button class="btn primary" onclick="uploadWordlist()">⬆️ Yükle</button>
+      </div>
+      <div>
+        <div class="form-row"><label>📝 Yeni Wordlist Adı</label><input id="wlName" placeholder="ornek_wordlist.txt"></div>
+        <div class="form-row"><label>İçerik (user:pass satırları)</label><textarea id="wlContent" style="min-height:80px;" placeholder="kullanici:sifre&#10;kullanici2:sifre2"></textarea></div>
+        <button class="btn primary" onclick="createWordlist()">➕ Oluştur</button>
+      </div>
+    </div>
+    <div id="wlList"></div>
+  </div>
+
+  <div id="tab-brutelog" class="panel hidden">
+    <div class="panel-title">🔐 Brute-Force Kayıtları</div>
+    <div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+      <button class="btn" onclick="loadBruteLog()">🔄 Yenile</button>
+      <button class="btn danger" onclick="clearBruteLog()">🗑️ Tümünü Sil</button>
+    </div>
+    <div id="bruteLogList"></div>
+  </div>
+
+  <div id="tab-settings" class="panel hidden">
+    <div class="panel-title">⚙️ Site Ayarları</div>
+    <div class="form-row"><label>Site Başlığı</label><input id="s_title"></div>
+    <div class="form-row"><label>Duyuru Metni</label><textarea id="s_announcement"></textarea></div>
+    <div class="form-row"><label>AI Model</label>
+      <select id="s_ai_model">
+        <option value="pollinations">pollinations</option>
+        <option value="gpt-4o-mini">gpt-4o-mini</option>
+        <option value="gpt-4o">gpt-4o</option>
+      </select>
+    </div>
+    <div class="form-row" style="display:flex;gap:1.25rem;flex-wrap:wrap;">
+      <label style="display:flex;gap:.4rem;align-items:center;color:var(--text);"><input type="checkbox" id="s_maintenance" style="width:auto;"> Bakım Modu</label>
+      <label style="display:flex;gap:.4rem;align-items:center;color:var(--text);"><input type="checkbox" id="s_ai" style="width:auto;"> AI Aktif</label>
+      <label style="display:flex;gap:.4rem;align-items:center;color:var(--text);"><input type="checkbox" id="s_register" style="width:auto;"> Kayıt Açık</label>
+      <label style="display:flex;gap:.4rem;align-items:center;color:var(--text);"><input type="checkbox" id="s_brute" style="width:auto;"> Brute Aktif</label>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap;">
+      <button class="btn primary" onclick="saveSettings()">💾 Kaydet</button>
+      <button class="btn danger" onclick="clearChat()">🗑️ Sohbeti Temizle</button>
+      <button class="btn danger" onclick="clearAI()">🗑️ AI Geçmişini Temizle</button>
+    </div>
+  </div>
+
+  <div id="tab-broadcast" class="panel hidden">
+    <div class="panel-title">📢 Duyuru Gönder</div>
+    <div class="form-row"><label>Mesaj</label><textarea id="b_message" placeholder="Tüm kullanıcılara gönderilecek mesaj..."></textarea></div>
+    <button class="btn primary" onclick="sendBroadcast()">📨 Gönder</button>
+  </div>
+
+  <div id="tab-logs" class="panel hidden">
+    <div class="panel-title">📜 Admin Logları</div>
+    <div id="logList"></div>
+  </div>
+</div>
+
+<div class="modal" id="userModal">
+  <div class="modal-box">
+    <div class="modal-title"><span id="modalTitle">Kullanıcı Detayı</span><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ADMIN_API = 'admin.php';
+const DEFAULT_AVATAR = 'https://i.hizliresim.com/midnihxu.jpg';
+let USERS = [];
+
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = 'toast', 2400);
+}
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function avatarOf(u){ return (u.avatar && !u.avatar.includes('ui-avatars.com')) ? u.avatar : DEFAULT_AVATAR; }
+
+async function api(action, params={}) {
+  const fd = new FormData(); fd.append('action', action);
+  for (const [k,v] of Object.entries(params)) fd.append(k, v);
+  const r = await fetch(ADMIN_API, { method:'POST', body: fd });
+  return r.json();
+}
+
+async function checkSession() {
+  const r = await fetch(ADMIN_API + '?action=admin_check');
+  const d = await r.json();
+  if (d.success && d.logged) {
+    document.getElementById('adminView').classList.remove('hidden');
+    document.getElementById('unauthView').classList.add('hidden');
+    loadAll();
+  } else {
+    document.getElementById('adminView').classList.add('hidden');
+    document.getElementById('unauthView').classList.remove('hidden');
+  }
+}
+
+function loadAll(){ loadStats(); loadUsers(); loadSettings(); loadLogs(); loadWordlists(); loadBruteLog(); }
+
+async function loadStats() {
+  const d = await api('stats'); if (!d.success) return;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="label">Toplam</div><div class="value purple">${d.total}</div></div>
+    <div class="stat"><div class="label">Çevrimiçi</div><div class="value green">${d.online}</div></div>
+    <div class="stat"><div class="label">VIP</div><div class="value vip">${d.vip}</div></div>
+    <div class="stat"><div class="label">Doğrulanmış</div><div class="value yellow">${d.verified}</div></div>
+    <div class="stat"><div class="label">Banlı</div><div class="value red">${d.banned}</div></div>
+    <div class="stat"><div class="label">Admin</div><div class="value red">${d.admin}</div></div>
+    <div class="stat"><div class="label">Mesaj</div><div class="value purple">${d.messages}</div></div>
+    <div class="stat"><div class="label">AI Mesaj</div><div class="value purple">${d.ai_messages||0}</div></div>
+    <div class="stat"><div class="label">Sorgu</div><div class="value green">${d.queries||0}</div></div>
+  `;
+}
+
+async function loadUsers() {
+  const d = await api('list_users'); if (!d.success) return;
+  USERS = d.users.sort((a,b)=>(b.online-a.online)||a.username.localeCompare(b.username));
+  renderUsers();
+}
+
+function renderUsers() {
+  const q = (document.getElementById('searchUser').value||'').toLowerCase();
+  const f = document.getElementById('filterUser').value;
+  let list = USERS.filter(u => u.username.toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q));
+  if (f === 'online') list = list.filter(u=>u.online);
+  else if (f === 'vip') list = list.filter(u=>u.is_vip);
+  else if (f === 'verified') list = list.filter(u=>u.verified);
+  else if (f === 'banned') list = list.filter(u=>u.banned);
+  else if (f === 'admin') list = list.filter(u=>u.is_admin);
+
+  let html = '';
+  for (const u of list) {
+    const status = u.banned ? '<span class="status banned"><span class="dot"></span> BANLI</span>'
+      : u.online ? '<span class="status online"><span class="dot"></span> Çevrimiçi</span>'
+      : '<span class="status offline"><span class="dot"></span> Çevrimdışı</span>';
+    const tick = u.verified ? '<span class="tick">✅</span>' : '';
+    let rankCls = ''; if (u.is_admin) rankCls='admin'; else if (u.is_vip) rankCls='vip';
+    const lastSeen = u.last_seen ? new Date(u.last_seen).toLocaleString('tr-TR') : '-';
+
+    html += `
+      <div class="user-row">
+        <img class="user-avatar" src="${esc(avatarOf(u))}" alt="" onclick="userDetail('${u.id}')">
+        <div class="user-info">
+          <div class="user-name">
+            ${esc(u.username)} ${tick}
+            <span class="rank-badge ${rankCls}">${esc(u.rank)}</span>
+            ${u.is_admin ? '<span class="rank-badge admin">ADMIN</span>' : ''}
+            ${u.is_vip && !u.is_admin ? '<span class="rank-badge vip">VIP</span>' : ''}
+          </div>
+          <div class="user-meta">${esc(u.email||'-')} · Son: ${lastSeen} · Sorgu: ${u.query_count||0}</div>
+          <div style="margin-top:.3rem;">${status}</div>
+        </div>
+        <div class="user-actions">
+          <button class="btn-sm warn" onclick="userDetail('${u.id}')">👁️ Detay</button>
+          <button class="btn-sm warn" onclick="editUser('${u.id}')">✏️ Düzenle</button>
+          ${!u.is_admin ? `
+            <button class="btn-sm ${u.verified?'warn':'success'}" onclick="toggleVerify('${u.id}',${u.verified?0:1})">${u.verified?'❌ Tik':'✅ Tik'}</button>
+            <button class="btn-sm ${u.is_vip?'warn':'vip'}" onclick="toggleVIP('${u.id}',${u.is_vip?0:1})">${u.is_vip?'❌ VIP':'💎 VIP'}</button>
+            <button class="btn-sm ${u.banned?'success':'danger'}" onclick="toggleBan('${u.id}',${u.banned?0:1})">${u.banned?'✅ Ban Kaldır':'🚫 Banla'}</button>
+            <button class="btn-sm warn" onclick="setRank('${u.id}','${esc(u.rank)}')">🏅 Rütbe</button>
+            <button class="btn-sm warn" onclick="resetPass('${u.id}')">🔑 Şifre</button>
+            <button class="btn-sm danger" onclick="delUser('${u.id}','${esc(u.username)}')">🗑️ Sil</button>
+          ` : '<span style="color:var(--text-dim);font-size:.75rem;">(admin)</span>'}
+        </div>
+      </div>`;
+  }
+  document.getElementById('userList').innerHTML = html || '<p style="color:var(--text-dim);text-align:center;padding:2rem;">Kullanıcı yok</p>';
+}
+
+async function toggleVerify(id,v){ const d=await api('verify',{id,verified:v}); toast(d.message||'OK',d.success?'success':'error'); loadUsers(); loadStats(); }
+async function toggleVIP(id,v){ const d=await api('vip',{id,vip:v}); toast(d.message||'OK',d.success?'success':'error'); loadUsers(); loadStats(); }
+async function toggleBan(id,v){ if(v&&!confirm('Banlamak istediğine emin misin?'))return; const d=await api('ban',{id,ban:v}); toast(d.message||'OK',d.success?'success':'error'); loadUsers(); loadStats(); }
+async function setRank(id,cur){ const r=prompt('Yeni rütbe:',cur); if(r===null||r.trim()==='')return; const d=await api('set_rank',{id,rank:r.trim()}); toast(d.message||'OK',d.success?'success':'error'); loadUsers(); }
+async function resetPass(id){ const p=prompt('Yeni şifre:'); if(!p)return; const d=await api('reset_password',{id,password:p}); toast(d.message||'OK',d.success?'success':'error'); }
+async function delUser(id,u){ if(!confirm(`"${u}" silinsin mi?`))return; const d=await api('delete_user',{id}); toast(d.message||'OK',d.success?'success':'error'); loadUsers(); loadStats(); }
+
+async function userDetail(id) {
+  const d = await api('user_detail', { id });
+  if (!d.success) return toast(d.error,'error');
+  const u = d.user;
+  document.getElementById('modalTitle').textContent = u.username;
+  document.getElementById('modalBody').innerHTML = `
+    <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;">
+      <img src="${esc(u.avatar)}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--border);">
+      <div>
+        <div style="font-size:1.1rem;font-weight:800;">${esc(u.username)} ${u.verified?'✅':''}</div>
+        <div style="color:var(--text-dim);font-size:.8rem;">${esc(u.rank)} ${u.is_vip?'💎':''} ${u.is_admin?'🛡️':''}</div>
+      </div>
+    </div>
+    <div class="kv">
+      <b>ID</b><span style="font-family:monospace;">${esc(u.id)}</span>
+      <b>Email</b><span>${esc(u.email||'-')}</span>
+      <b>Telefon</b><span>${esc(u.phone||'-')}</span>
+      <b>Website</b><span>${esc(u.website||'-')}</span>
+      <b>Doğum</b><span>${esc(u.birthday||'-')}</span>
+      <b>Burç</b><span>${esc(u.horoscope||'-')}</span>
+      <b>Şehir</b><span>${esc(u.city||'-')}</span>
+      <b>Meslek</b><span>${esc(u.job||'-')}</span>
+      <b>Cinsiyet</b><span>${esc(u.gender||'-')}</span>
+      <b>Instagram</b><span>${esc(u.instagram||'-')}</span>
+      <b>Telegram</b><span>${esc(u.telegram||'-')}</span>
+      <b>Biyografi</b><span>${esc(u.bio||'-')}</span>
+      <b>Notlar</b><span>${esc(u.notes||'-')}</span>
+      <b>Kayıt</b><span>${u.created_at?new Date(u.created_at).toLocaleString('tr-TR'):'-'}</span>
+      <b>Son Görülme</b><span>${u.last_seen?new Date(u.last_seen).toLocaleString('tr-TR'):'-'}</span>
+      <b>Sorgu Sayısı</b><span>${u.query_count||0}</span>
+      <b>Giriş Sayısı</b><span>${u.login_count||0}</span>
+      <b>Sohbet Mesajı</b><span>${d.messages}</span>
+      <b>AI Mesajı</b><span>${d.ai_messages}</span>
+      <b>Durum</b><span>${u.banned?'🚫 Banlı':(u.online?'🟢 Çevrimiçi':'⚫ Çevrimdışı')}</span>
+    </div>`;
+  document.getElementById('userModal').classList.add('open');
+}
+
+async function editUser(id) {
+  const u = USERS.find(x=>x.id===id); if(!u) return;
+  document.getElementById('modalTitle').textContent = 'Düzenle: ' + u.username;
+  document.getElementById('modalBody').innerHTML = `
+    <input type="hidden" id="e_id" value="${esc(u.id)}">
+    <div class="form-row"><label>Email</label><input id="e_email" value="${esc(u.email)}"></div>
+    <div class="form-row"><label>Telefon</label><input id="e_phone" value="${esc(u.phone||'')}"></div>
+    <div class="form-row"><label>Website</label><input id="e_website" value="${esc(u.website||'')}"></div>
+    <div class="form-row"><label>Doğum (GG.AA.YYYY)</label><input id="e_birthday" value="${esc(u.birthday||'')}"></div>
+    <div class="form-row"><label>Şehir</label><input id="e_city" value="${esc(u.city||'')}"></div>
+    <div class="form-row"><label>Meslek</label><input id="e_job" value="${esc(u.job||'')}"></div>
+    <div class="form-row"><label>Cinsiyet</label>
+      <select id="e_gender">
+        <option value="">-</option>
+        <option value="Erkek" ${u.gender==='Erkek'?'selected':''}>Erkek</option>
+        <option value="Kadın" ${u.gender==='Kadın'?'selected':''}>Kadın</option>
+        <option value="Diğer" ${u.gender==='Diğer'?'selected':''}>Diğer</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Instagram</label><input id="e_instagram" value="${esc(u.instagram||'')}"></div>
+    <div class="form-row"><label>Telegram</label><input id="e_telegram" value="${esc(u.telegram||'')}"></div>
+    <div class="form-row"><label>Avatar URL</label><input id="e_avatar" value="${esc(u.avatar||'')}"></div>
+    <div class="form-row"><label>Biyografi</label><textarea id="e_bio">${esc(u.bio||'')}</textarea></div>
+    <div class="form-row"><label>Notlar (sadece admin görür)</label><textarea id="e_notes">${esc(u.notes||'')}</textarea></div>
+    <button class="btn primary" style="width:100%;margin-top:.5rem;" onclick="saveEditUser()">💾 Kaydet</button>`;
+  document.getElementById('userModal').classList.add('open');
+}
+
+async function saveEditUser() {
+  const params = {
+    id: document.getElementById('e_id').value,
+    email: document.getElementById('e_email').value,
+    phone: document.getElementById('e_phone').value,
+    website: document.getElementById('e_website').value,
+    birthday: document.getElementById('e_birthday').value,
+    city: document.getElementById('e_city').value,
+    job: document.getElementById('e_job').value,
+    gender: document.getElementById('e_gender').value,
+    instagram: document.getElementById('e_instagram').value,
+    telegram: document.getElementById('e_telegram').value,
+    avatar: document.getElementById('e_avatar').value,
+    bio: document.getElementById('e_bio').value,
+    notes: document.getElementById('e_notes').value,
+  };
+  const d = await api('edit_user', params);
+  toast(d.message||'OK', d.success?'success':'error');
+  if (d.success) { closeModal(); loadUsers(); }
+}
+
+function closeModal(){ document.getElementById('userModal').classList.remove('open'); }
+
+async function loadSettings() {
+  const d = await api('settings'); if(!d.success) return;
+  const s = d.settings;
+  document.getElementById('s_title').value = s.site_title || '';
+  document.getElementById('s_announcement').value = s.announcement || '';
+  document.getElementById('s_ai_model').value = s.ai_model || 'pollinations';
+  document.getElementById('s_maintenance').checked = !!s.maintenance;
+  document.getElementById('s_ai').checked = !!s.ai_enabled;
+  document.getElementById('s_register').checked = !!s.register_open;
+  document.getElementById('s_brute').checked = !!s.brute_enabled;
+}
+
+async function saveSettings() {
+  const fd = new FormData();
+  fd.append('action','settings');
+  fd.append('site_title', document.getElementById('s_title').value);
+  fd.append('announcement', document.getElementById('s_announcement').value);
+  fd.append('ai_model', document.getElementById('s_ai_model').value);
+  fd.append('maintenance', document.getElementById('s_maintenance').checked ? 1 : 0);
+  fd.append('ai_enabled', document.getElementById('s_ai').checked ? 1 : 0);
+  fd.append('register_open', document.getElementById('s_register').checked ? 1 : 0);
+  fd.append('brute_enabled', document.getElementById('s_brute').checked ? 1 : 0);
+  const r = await fetch(ADMIN_API, { method:'POST', body: fd });
+  const d = await r.json();
+  toast(d.message||'OK', d.success?'success':'error');
+}
+
+async function clearChat(){ if(!confirm('Sohbet temizlensin mi?'))return; const d=await api('clear_chat'); toast(d.message||'OK',d.success?'success':'error'); }
+async function clearAI(){ if(!confirm('AI geçmişi temizlensin mi?'))return; const d=await api('clear_ai'); toast(d.message||'OK',d.success?'success':'error'); }
+
+async function loadLogs() {
+  const d = await api('logs'); if(!d.success) return;
+  let html = '';
+  for (const l of d.logs) {
+    html += `<div class="log-row">
+      <div class="log-action">${esc(l.action)}</div>
+      <div class="log-detail"><b>${esc(l.admin)}</b> ${esc(l.detail)} <span style="color:var(--text-dim);">(${esc(l.ip)})</span></div>
+      <div class="log-ts">${new Date(l.ts*1000).toLocaleString('tr-TR')}</div>
+    </div>`;
+  }
+  document.getElementById('logList').innerHTML = html || '<p style="color:var(--text-dim);text-align:center;padding:1.5rem;">Log yok</p>';
+}
+
+async function sendBroadcast() {
+  const msg = document.getElementById('b_message').value.trim();
+  if (!msg) return toast('Mesaj boş','error');
+  const d = await api('broadcast', { message: msg });
+  toast(d.message||'OK', d.success?'success':'error');
+  if (d.success) document.getElementById('b_message').value = '';
+}
+
+function exportUsers(){ window.location.href = ADMIN_API + '?action=export_users'; }
+
+// ═══════════ WORDLIST ═══════════
+async function loadWordlists() {
+  const d = await api('wordlist_list'); if (!d.success) return;
+  let html = '';
+  if (!d.files.length) html = '<p style="color:var(--text-dim);text-align:center;padding:1.5rem;">Wordlist yok</p>';
+  for (const f of d.files) {
+    const sizeKb = (f.size / 1024).toFixed(1);
+    const dt = new Date(f.modified).toLocaleString('tr-TR');
+    html += `<div class="log-row">
+      <div class="log-action">📄 ${esc(f.name)}</div>
+      <div class="log-detail">${f.lines} satır · ${sizeKb} KB · ${dt}</div>
+      <div class="user-actions">
+        <button class="btn-sm warn" onclick="viewWordlist('${esc(f.name)}')">👁️ Görüntüle</button>
+        <button class="btn-sm danger" onclick="deleteWordlist('${esc(f.name)}')">🗑️ Sil</button>
+      </div>
+    </div>`;
+  }
+  document.getElementById('wlList').innerHTML = html;
+}
+
+async function uploadWordlist() {
+  const file = document.getElementById('wlFile').files[0];
+  if (!file) return toast('Dosya seç', 'error');
+  const fd = new FormData();
+  fd.append('action', 'wordlist_upload');
+  fd.append('file', file);
+  const r = await fetch(ADMIN_API, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message || 'Yüklendi', d.success ? 'success' : 'error');
+  if (d.success) { document.getElementById('wlFile').value = ''; loadWordlists(); }
+}
+
+async function createWordlist() {
+  const name = document.getElementById('wlName').value.trim();
+  const content = document.getElementById('wlContent').value;
+  if (!name || !content.trim()) return toast('İsim ve içerik gerekli', 'error');
+  const d = await api('wordlist_create', { name, content });
+  toast(d.message || 'Oluşturuldu', d.success ? 'success' : 'error');
+  if (d.success) { document.getElementById('wlName').value = ''; document.getElementById('wlContent').value = ''; loadWordlists(); }
+}
+
+async function deleteWordlist(name) {
+  if (!confirm(`"${name}" silinsin mi?`)) return;
+  const d = await api('wordlist_delete', { name });
+  toast(d.message || 'Silindi', d.success ? 'success' : 'error');
+  loadWordlists();
+}
+
+async function viewWordlist(name) {
+  const d = await api('wordlist_view', { name, limit: 300 });
+  if (!d.success) return toast(d.error, 'error');
+  document.getElementById('modalTitle').textContent = '📄 ' + name + ' (ilk ' + d.shown + ' satır)';
+  document.getElementById('modalBody').innerHTML = `<pre style="font-family:'JetBrains Mono',monospace;font-size:.75rem;white-space:pre-wrap;word-break:break-all;max-height:60vh;overflow:auto;">${esc(d.lines.join('\n'))}</pre>`;
+  document.getElementById('userModal').classList.add('open');
+}
+
+// ═══════════ BRUTE LOG ═══════════
+async function loadBruteLog() {
+  const d = await api('brute_log_list'); if (!d.success) return;
+  let html = '';
+  if (!d.logs.length) html = '<p style="color:var(--text-dim);text-align:center;padding:1.5rem;">Kayıt yok</p>';
+  for (const l of d.logs) {
+    const icon = l.success ? '✅' : (l.status === 'checkpoint' ? '⚠️' : '❌');
+    html += `<div class="log-row">
+      <div class="log-action">${icon} ${esc(l.target)}</div>
+      <div class="log-detail">
+        <b>${esc(l.username)}:${esc(l.password)}</b> · 
+        ${esc(l.status || (l.success?'başarılı':'başarısız'))}
+        ${l.message ? '· ' + esc(l.message) : ''}
+      </div>
+      <div class="log-ts">${new Date(l.ts*1000).toLocaleString('tr-TR')}</div>
+      <button class="btn-sm danger" onclick="deleteBruteLog('${esc(l.id)}')">🗑️</button>
+    </div>`;
+  }
+  document.getElementById('bruteLogList').innerHTML = html;
+}
+
+async function deleteBruteLog(id) {
+  const d = await api('brute_log_delete', { id });
+  toast('Silindi', d.success ? 'success' : 'error');
+  loadBruteLog();
+}
+
+async function clearBruteLog() {
+  if (!confirm('Tüm brute logu silinsin mi?')) return;
+  const d = await api('brute_log_clear');
+  toast(d.message || 'Silindi', d.success ? 'success' : 'error');
+  loadBruteLog();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  ['users','wordlists','brutelog','settings','broadcast','logs'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('hidden', t!==tab);
+  });
+  if (tab==='logs') loadLogs();
+  if (tab==='wordlists') loadWordlists();
+  if (tab==='brutelog') loadBruteLog();
+}
+
+async function logout(){ await fetch('auth.php?action=logout'); location.href='adminlogin.html'; }
+
+setInterval(() => { if (!document.getElementById('adminView').classList.contains('hidden')) loadUsers(); }, 30000);
+checkSession();
+</script>
+</body>
+</html>
