@@ -1,73 +1,119 @@
 <?php
-// SKRS E-Reçete İlaç Listesi API — titck.gov.tr/dinamikmodul/43
-// Rusça: парсим HTML-таблицу модуля 43, извлекаем ссылки на файлы .xlsx/.xls/.csv
-// и даём прямой доступ к последнему списку.
+// SKRS E-Reçete listesini indirip XLSX'ten ilaç verisini çeken tam PHP
+// Rusça: скачиваем .xlsx через ZipArchive + SimpleXML, без внешних библиотек.
 
 header('Content-Type: application/json; charset=utf-8');
 
-$modulUrl = 'https://www.titck.gov.tr/dinamikmodul/43';
+$jsonUrl = 'https://forexservisi.onrender.com/titck.php';
 
-// 1) HTML'i al
-$ch = curl_init($modulUrl);
+// 1) En yeni dosya linkini al
+$ch = curl_init($jsonUrl);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_TIMEOUT        => 60,
+    CURLOPT_TIMEOUT        => 120,
     CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    CURLOPT_HTTPHEADER     => ['Accept: text/html'],
+    CURLOPT_USERAGENT      => 'Mozilla/5.0',
 ]);
-$html = curl_exec($ch);
+$json = curl_exec($ch);
 $kod  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$hata = curl_error($ch);
 curl_close($ch);
 
-if ($html === false || $kod >= 400) {
+if ($json === false || $kod >= 400) {
     http_response_code(502);
-    echo json_encode(['ok'=>false,'kod'=>$kod,'hata'=>$hata ?: 'Sayfa alınamadı'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>false,'hata'=>'titck.php yanıt vermedi','kod'=>$kod], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// 2) Satırları ayıkla: ad | tarih | dosya linki
-$liste = [];
-if (preg_match_all('/<tr[^>]*>(.*?)<\/tr>/si', $html, $satirlar)) {
-    foreach ($satirlar[1] as $satir) {
-        // hücreler
-        if (!preg_match_all('/<td[^>]*>(.*?)<\/td>/si', $satir, $hucre)) continue;
-        $alanlar = $hucre[1];
-        if (count($alanlar) < 3) continue;
+$veri = json_decode($json, true);
+$dosyaUrl = $veri['en_yeni']['dosya'] ?? null;
+if (!$dosyaUrl) {
+    http_response_code(500);
+    echo json_encode(['ok'=>false,'hata'=>'Dosya linki yok'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-        $ad    = trim(html_entity_decode(strip_tags($alanlar[0]), ENT_QUOTES, 'UTF-8'));
-        $tarih = trim(html_entity_decode(strip_tags($alanlar[1]), ENT_QUOTES, 'UTF-8'));
+// 2) XLSX dosyasını indir
+$tmp = sys_get_temp_dir() . '/skrs_' . md5($dosyaUrl) . '.xlsx';
 
-        // dosya linki
-        $dosya = null;
-        if (preg_match('/href=["\']([^"\']+)["\']/i', $alanlar[2], $m)) {
-            $dosya = $m[1];
-            if (str_starts_with($dosya, '/')) {
-                $dosya = 'https://www.titck.gov.tr' . $dosya;
-            }
-        }
-
-        if ($ad !== '' && $dosya) {
-            $liste[] = ['ad'=>$ad, 'tarih'=>$tarih, 'dosya'=>$dosya];
-        }
+if (!file_exists($tmp) || filesize($tmp) < 1000) {
+    $fp = fopen($tmp, 'wb');
+    $ch = curl_init($dosyaUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_FILE           => $fp,
+        CURLOPT_TIMEOUT        => 300,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0',
+    ]);
+    curl_exec($ch);
+    $kod = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    fclose($fp);
+    if ($kod >= 400) {
+        http_response_code(502);
+        echo json_encode(['ok'=>false,'hata'=>'XLSX indirilemedi','kod'=>$kod], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }
 
-// 3) En yeni kayıt (tarihe göre sırala)
-usort($liste, function($a, $b) {
-    $ta = strtotime(str_replace('.', '-', $a['tarih'])) ?: 0;
-    $tb = strtotime(str_replace('.', '-', $b['tarih'])) ?: 0;
-    return $tb <=> $ta;
-});
+// 3) XLSX'i aç (zip)
+$zip = new ZipArchive();
+if ($zip->open($tmp) !== true) {
+    http_response_code(500);
+    echo json_encode(['ok'=>false,'hata'=>'XLSX açılamadı'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-$son = $liste[0] ?? null;
+// 4) Paylaşılan metinler (sharedStrings.xml)
+$paylasilan = [];
+if (($xml = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
+    $s = simplexml_load_string($xml);
+    foreach ($s->si as $si) {
+        $metin = '';
+        if (isset($si->t)) $metin = (string)$si->t;
+        elseif (isset($si->r)) foreach ($si->r as $r) $metin .= (string)$r->t;
+        $paylasilan[] = $metin;
+    }
+}
+
+// 5) İlk sayfa (sheet1)
+$sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+$zip->close();
+
+if ($sheetXml === false) {
+    http_response_code(500);
+    echo json_encode(['ok'=>false,'hata'=>'sheet1.xml yok'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$sheet = simplexml_load_string($sheetXml);
+$satirlar = [];
+foreach ($sheet->sheetData->row as $row) {
+    $satir = [];
+    foreach ($row->c as $c) {
+        $tip = (string)$c['t'];
+        $v   = (string)$c->v;
+        if ($tip === 's' && isset($paylasilan[(int)$v])) {
+            $deger = $paylasilan[(int)$v];
+        } elseif ($tip === 'inlineStr') {
+            $deger = (string)$c->is->t;
+        } else {
+            $deger = $v;
+        }
+        $satir[] = $deger;
+    }
+    if (!empty($satir)) $satirlar[] = $satir;
+}
+
+// 6) Başlık + ilk 20 satır
+$baslik = $satirlar[0] ?? [];
+$ornek  = array_slice($satirlar, 1, 20);
 
 echo json_encode([
-    'ok'       => true,
-    'modul'    => $modulUrl,
-    'toplam'   => count($liste),
-    'en_yeni'  => $son,
-    'liste'    => array_slice($liste, 0, 20), // ilk 20 kayıt
+    'ok'        => true,
+    'dosya'     => $dosyaUrl,
+    'boyut'     => filesize($tmp),
+    'toplam_satir' => count($satirlar),
+    'baslik'    => $baslik,
+    'ornek'     => $ornek,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
