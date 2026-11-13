@@ -1,60 +1,44 @@
 <?php
-// ask.php — düzeltilmiş sürüm
+// askerlik.php — kendi hesaplama (TSK yönetmeliği)
 header('Content-Type: application/json; charset=utf-8');
 
-$boy  = (int)($_GET['boy']  ?? 170);
-$kilo = (int)($_GET['kilo'] ?? 60);
+$boy  = (int)($_GET['boy']  ?? 170);  // cm
+$kilo = (int)($_GET['kilo'] ?? 60);   // kg
 
-$ch = curl_init('https://istahed.org.tr/askerlikboykilohesaplama/');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => http_build_query(['boy'=>$boy,'kilo'=>$kilo]),
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_ENCODING       => '',
-    CURLOPT_USERAGENT      => 'Mozilla/5.0 (Android 15; Mobile; rv:159.0) Gecko/159.0 Firefox/159.0',
-    CURLOPT_HTTPHEADER     => [
-        'Accept: text/html',
-        'Accept-Language: tr-TR',
-        'Content-Type: application/x-www-form-urlencoded',
-        'Referer: https://istahed.org.tr/askerlikboykilohesaplama/',
-    ],
-    CURLOPT_TIMEOUT        => 30,
-]);
-$html = curl_exec($ch);
-$kod  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($html === false || $kod >= 400) {
-    http_response_code(502);
-    exit(json_encode(['ok'=>false,'kod'=>$kod,'hata'=>'İstek başarısız']));
+if ($boy < 100 || $boy > 250 || $kilo < 30 || $kilo > 300) {
+    exit(json_encode(['ok'=>false,'hata'=>'Geçersiz boy/kilo']));
 }
 
-// JSON-LD ve script'leri çıkar
-$temiz = preg_replace('/<script[^>]*>.*?<\/script>/si', '', $html);
-$temiz = preg_replace('/<style[^>]*>.*?<\/style>/si', '', $temiz);
-$metin = trim(preg_replace('/\s+/', ' ', strip_tags($temiz)));
+// TSK boy-kilo tablosu (alt/üst sınırlar, kg)
+// Kaynak: TSK Sağlık Yeteneği Yönetmeliği
+$tablo = [
+    // boy => [min, max]
+    150 => [42, 68],  155 => [45, 72],  160 => [48, 77],
+    165 => [51, 82],  170 => [54, 87],  175 => [57, 92],
+    180 => [60, 97],  185 => [63, 102], 190 => [66, 107],
+    195 => [69, 112], 200 => [72, 117],
+];
 
-// Askerlik sonucu ile ilgili cümleyi bul
-$sonuc = null;
-foreach ([
-    '/(askerliğe\s+elverişli\s+değildir[^.]*\.)/iu',
-    '/(askerliğe\s+elverişlidir[^.]*\.)/iu',
-    '/(boy\s*ve\s*kilo[^.]*\.)/iu',
-    '/(sonuç[^.]*\.)/iu',
-] as $re) {
-    if (preg_match($re, $metin, $m)) { $sonuc = trim($m[1]); break; }
+// En yakın boy satırını bul
+$min = null; $max = null;
+foreach ($tablo as $b => [$lo, $hi]) {
+    if ($boy >= $b && ($min === null || abs($boy-$b) < abs($boy-$min))) {
+        $min = $b; $max = $hi;
+        $altSinir = $lo; $ustSinir = $hi;
+    }
 }
 
-// Boy/kilo değerlerini de döndür
+$durum = 'Bilinmiyor';
+if ($kilo < $altSinir)      $durum = 'Askerliğe elverişli değildir (zayıf)';
+elseif ($kilo > $ustSinir)  $durum = 'Askerliğe elverişli değildir (obez)';
+else                        $durum = 'Askerliğe elverişlidir';
+
 echo json_encode([
-    'ok'    => true,
-    'kod'   => $kod,
-    'boy'   => $boy,
-    'kilo'  => $kilo,
-    'sonuc' => $sonuc,
-    'metin_uzunluk' => strlen($metin),
-    // hata ayıklama için ilk 500 karakter
-    'metin_ornek' => $sonuc ? null : mb_substr($metin, 0, 500),
+    'ok'        => true,
+    'boy'       => $boy,
+    'kilo'      => $kilo,
+    'alt_sinir' => $altSinir ?? null,
+    'ust_sinir' => $ustSinir ?? null,
+    'durum'     => $durum,
+    'not'       => 'TSK Sağlık Yeteneği Yönetmeliği tablosu (yaklaşık)',
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
