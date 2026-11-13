@@ -1,8 +1,9 @@
 <?php
 // ============================================================
-// ZipArchive OLMADAN XLSX okuma — saf PHP
-// Rusça: минимальный ZIP-ридер (local file header + deflate),
-// без расширения zip. Работает на любом PHP с zlib.
+// SKRS E-Reçete — DÜZELTİLMİŞ SÜRÜM
+// ZIP okuma hatası giderildi: doğru header boyutu + central directory.
+// ZipArchive gerekmez; sadece zlib.
+// Rusça: исправлен парсер ZIP — правильные смещения и central directory.
 // ============================================================
 
 declare(strict_types=1);
@@ -36,32 +37,58 @@ function httpGet(string $url, int $timeout = 120): array {
     return ['ok' => $b !== false && $c >= 200 && $c < 400, 'code' => $c, 'body' => $b];
 }
 
-// ---------- SAF PHP ZIP OKUYUCU ----------
-// ZIP yapısı: her dosya "local file header" (PK\x03\x04) ile başlar.
-// Sıkıştırma yöntemi 8 = deflate → gzinflate ile açılır.
-function zipIcindenAl(string $zipData, string $hedef): ?string {
-    $uzunluk = strlen($zipData);
-    $ara = 0;
-    while (($pos = strpos($zipData, "PK\x03\x04", $ara)) !== false) {
-        // Local file header: 30 bayt sabit
-        if ($pos + 30 > $uzunluk) break;
-        $h = unpack('vversion/vextract/vflag/vmethod/vmtime/vmdate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen', substr($zipData, $pos + 4, 26));
-        $adBas = $pos + 30;
-        $ad = substr($zipData, $adBas, $h['nameLen']);
-        $veriBas = $adBas + $h['nameLen'] + $h['extraLen'];
+// ---------- ZIP: central directory üzerinden oku ----------
+// Central Directory kaydı: PK\x01\x02, sabit 42 bayt + name + extra + comment
+// Local header'daki sıkıştırılmış boyut 0 olabilir (data descriptor),
+// bu yüzden güvenilir kaynak central directory'dir.
+function zipDosyaAl(string $zipData, string $hedef): ?string {
+    $len = strlen($zipData);
+    if ($len < 22) return null;
 
-        // Sıkıştırılmış boyut 0 ise (data descriptor kullanılıyor) → central directory'den bulmak gerekir.
-        // TİTCK dosyalarında genelde boyut header'da yazılı.
-        $compSize = $h['compSize'];
+    // End of Central Directory (EOCD): PK\x05\x06, dosya sonundan geriye ara
+    $eocdPos = strrpos($zipData, "PK\x05\x06");
+    if ($eocdPos === false) return null;
 
-        if ($ad === $hedef) {
-            if ($compSize === 0) return null; // data descriptor — aşağıdaki fallback
-            $sikisik = substr($zipData, $veriBas, $compSize);
-            if ($h['method'] === 0) return $sikisik;              // stored
-            if ($h['method'] === 8) return @gzinflate($sikisik);  // deflate
-            return null; // desteklenmeyen yöntem
+    $eocd = unpack('vdisk/vcdDisk/vdiskEntries/ventries/VcdSize/VcdOffset/vcommentLen', substr($zipData, $eocdPos + 4, 18));
+    if ($eocd === false) return null;
+
+    $cdOffset = $eocd['cdOffset'];
+    $entries  = $eocd['entries'];
+    $p = $cdOffset;
+
+    for ($i = 0; $i < $entries; $i++) {
+        if ($p + 46 > $len) break;
+        if (substr($zipData, $p, 4) !== "PK\x01\x02") break;
+
+        $h = unpack(
+            'vverMade/vverNeed/vflags/vmethod/vmtime/vmdate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen/vcommentLen/vdiskStart/vintAttr/VextAttr/VlocalOffset',
+            substr($zipData, $p + 4, 42)
+        );
+        if ($h === false) break;
+
+        $name = substr($zipData, $p + 46, $h['nameLen']);
+        $p += 46 + $h['nameLen'] + $h['extraLen'] + $h['commentLen'];
+
+        if ($name !== $hedef) continue;
+
+        // Local header'a git
+        $lo = $h['localOffset'];
+        if ($lo + 30 > $len) return null;
+        if (substr($zipData, $lo, 4) !== "PK\x03\x04") return null;
+
+        $lh = unpack('vverNeed/vflags/vmethod/vmtime/vmdate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen', substr($zipData, $lo + 4, 26));
+        if ($lh === false) return null;
+
+        $veriBas = $lo + 30 + $lh['nameLen'] + $lh['extraLen'];
+        $sikisik = substr($zipData, $veriBas, $h['compSize']);
+        if (strlen($sikisik) !== $h['compSize']) return null;
+
+        if ($h['method'] === 0) return $sikisik;              // stored
+        if ($h['method'] === 8) {                             // deflate
+            $acik = @gzinflate($sikisik);
+            return $acik === false ? null : $acik;
         }
-        $ara = $veriBas + max($compSize, 1);
+        return null; // desteklenmeyen yöntem
     }
     return null;
 }
@@ -118,13 +145,12 @@ function xlsxIndir(string $url): ?string {
     return $ad;
 }
 
-// ---------- XLSX PARSE (ZipArchive'sız) ----------
+// ---------- XLSX PARSE ----------
 function xlsxOku(string $dosya): array {
     $zipData = (string)file_get_contents($dosya);
 
-    // sharedStrings
     $shared = [];
-    $ssXml = zipIcindenAl($zipData, 'xl/sharedStrings.xml');
+    $ssXml = zipDosyaAl($zipData, 'xl/sharedStrings.xml');
     if ($ssXml !== null) {
         $sx = @simplexml_load_string($ssXml);
         if ($sx) foreach ($sx->si as $si) {
@@ -135,8 +161,7 @@ function xlsxOku(string $dosya): array {
         }
     }
 
-    // sheet1
-    $sheetXml = zipIcindenAl($zipData, 'xl/worksheets/sheet1.xml');
+    $sheetXml = zipDosyaAl($zipData, 'xl/worksheets/sheet1.xml');
     if ($sheetXml === null) return [];
     $sx = @simplexml_load_string($sheetXml);
     if (!$sx) return [];
@@ -166,7 +191,7 @@ try {
     if (!$dosya) throw new RuntimeException('XLSX indirilemedi');
 
     $satirlar = xlsxOku($dosya);
-    if (!$satirlar) throw new RuntimeException('XLSX parse edilemedi (ZIP yapısı okunamadı)');
+    if (!$satirlar) throw new RuntimeException('XLSX parse edilemedi');
 
     $baslik = $satirlar[0] ?? [];
     $veri   = array_slice($satirlar, 1);
