@@ -1,5 +1,5 @@
 <?php
-// pttkodu.php - Debug (Hata Ayıklama) Modlu Versiyon
+// pttkodu.php - Düzeltilmiş Versiyon
 
 function apiIstekAt($payload, &$debugInfo) {
     $url = "https://www.ptt.gov.tr/api/posta-kodu";
@@ -20,14 +20,12 @@ function apiIstekAt($payload, &$debugInfo) {
     ]);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
     curl_close($ch);
 
     $debugInfo[] = [
         "payload" => $payload,
         "http_code" => $httpCode,
-        "curl_error" => $error,
-        "response_snippet" => substr($response, 0, 200) // İlk 200 karakter
+        "response_snippet" => substr($response, 0, 100)
     ];
 
     return json_decode($response, true);
@@ -39,7 +37,7 @@ $mahalle = $_GET['mahalle'] ?? 'BEŞTEPE';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$ilKodu = "6"; // Şimdilik Ankara sabit
+$ilKodu = "6"; // Ankara
 $debugLog = [];
 
 // 1. İlçe kodunu bul
@@ -49,32 +47,27 @@ $ilceKodu = null;
 if ($ilceler) {
     foreach ($ilceler as $i) {
         if (mb_strtoupper($i['ad'], 'UTF-8') === mb_strtoupper($ilce, 'UTF-8')) {
-            $ilceKodu = $i['kod'];
+            $ilceKodu = (string) $i['kod']; // KRİTİK DÜZELTME: String'e cast et
             break;
         }
     }
 }
 
 if (!$ilceKodu) {
-    echo json_encode([
-        "hata" => "İlçe bulunamadı.", 
-        "aranan_ilce" => $ilce,
-        "debug" => $debugLog
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    echo json_encode(["hata" => "İlçe bulunamadı."], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// 2. Posta kodlarını çek
+// 2. Posta kodlarını çek (String olarak gönder)
 $postakodlari = apiIstekAt([
     "action" => "postakodu", 
     "il_kodu" => $ilKodu, 
-    "ilce_kodu" => $ilceKodu
+    "ilce_kodu" => (string) $ilceKodu
 ], $debugLog);
 
 if (!$postakodlari) {
     echo json_encode([
-        "hata" => "Posta kodu verisi alınamadı. (API yanıt vermedi veya JSON bozuk)",
-        "ilce_kodu" => $ilceKodu,
+        "hata" => "Posta kodu verisi alınamadı.",
         "debug" => $debugLog
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
@@ -102,7 +95,6 @@ if (count($bulunanlar) > 0) {
 } else {
     echo json_encode([
         "mesaj" => "Aranan mahalle/sokak bulunamadı.",
-        "toplam_kayit" => count($postakodlari),
-        "debug" => $debugLog
+        "toplam_kayit" => count($postakodlari)
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }
